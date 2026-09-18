@@ -39,12 +39,23 @@ create policy "Usuário acessa seu próprio estado"
   with check (auth.uid()::text = user_id);
 ```
 
-4. Em `Authentication > Providers`, ative `Google` e configure:
-   - `Client ID` e `Client Secret` do OAuth do Google.
-   - Redirect URL da aplicação (ex.: `https://fitnexis-livid.vercel.app/`).
-5. Em `Authentication > URL Configuration`, adicione o mesmo domínio na lista de `Site URL` e `Redirect URLs`.
-6. Em `Authentication > Settings`, mantenha o login via OAuth habilitado para usuários.
-7. Publicando com Vercel, mantenha os valores no `index.html` ou passe por variáveis de ambiente/build na sua pipeline.
+4. No **Google Cloud Console** (APIs e Serviços > Credenciais > ID do cliente OAuth 2.0):
+   - **Origens JavaScript autorizadas**: `https://<SEU-PROJETO>.supabase.co`, `https://fitnexis-livid.vercel.app` e `http://localhost:8080` (para testes locais).
+   - **URIs de redirecionamento autorizados**: `https://<SEU-PROJETO>.supabase.co/auth/v1/callback` (atenção: deve ser a URL do Supabase, não a da Vercel).
+
+5. No **Supabase Dashboard** (`Authentication > Providers > Google`):
+   - Ative o provider `Google`.
+   - Insira o `Client ID` e `Client Secret` gerados no Google Cloud.
+
+6. No **Supabase Dashboard** (`Authentication > URL Configuration`):
+   - **Site URL**: `https://fitnexis-livid.vercel.app`
+   - **Redirect URLs**: Adicione `https://fitnexis-livid.vercel.app/**` e `http://localhost:8080/**`.
+
+7. Na **Vercel** (`Project Settings`):
+   - **Framework Preset**: Selecione **Other**.
+   - **Build Command**: `npm run build` (executa `build.js` e gera o `config.js`).
+   - **Output Directory**: `.` (raiz).
+   - **Environment Variables**: Adicione `SUPABASE_URL` e `SUPABASE_ANON_KEY`.
 
 ## Arquivos úteis do Supabase
 

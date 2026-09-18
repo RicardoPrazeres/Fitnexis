@@ -35,7 +35,12 @@ test('conteúdo editável é escapado e não cria manipuladores inline dinâmico
 });
 
 test('reconexão dispara sincronização dos dados pendentes', () => {
-  assert.match(html, /addEventListener\('online', \(\) => saveToFirestore\(\)\)/);
+  assert.match(html, /addEventListener\('online', \(\) => saveToSupabaseState\(\)\)/);
+});
+
+test('autenticação utiliza onAuthStateChange e configuração dinâmica', () => {
+  assert.match(html, /src="config\.js"/);
+  assert.match(html, /supabase\.auth\.onAuthStateChange/);
 });
 
 test('backup inclui preferências e histórico de cargas', () => {

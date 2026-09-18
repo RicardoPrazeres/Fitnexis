@@ -42,6 +42,8 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Configuração Dinâmica (Vercel / Build / Local) -->
+    <script src="config.js"></script>
     <style>
         :root {
             --canvas: #ece8df;
@@ -460,6 +462,23 @@
                             </label>
                         </div>
                     </div>
+
+                    <!-- Nuvem e Supabase -->
+                    <div class="border-t dark:border-zinc-800 pt-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-bold text-slate-700 dark:text-zinc-300 flex items-center"><i class="fa-solid fa-cloud text-indigo-500 mr-2"></i>Nuvem / Supabase</h3>
+                            <span id="supabase-config-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full"></span>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-zinc-400 mb-3">Definido via Vercel (Environment Variables) ou diretamente neste navegador:</p>
+                        <div class="space-y-2">
+                            <input type="text" id="setting-supabase-url" placeholder="URL do Supabase (https://xxx.supabase.co)" class="w-full text-xs bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-indigo-500">
+                            <input type="password" id="setting-supabase-key" placeholder="Chave Pública (anon key)" class="w-full text-xs bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg px-3 py-2 text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-indigo-500">
+                            <div class="flex space-x-2 justify-end">
+                                <button onclick="resetCustomSupabaseConfig()" class="text-xs bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-3 py-1.5 rounded-lg font-bold">Limpar</button>
+                                <button onclick="saveCustomSupabaseConfig()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-bold">Salvar e Recarregar</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -501,10 +520,20 @@
 
     <script>
         // --- SUPABASE ---
-        // Coloque aqui as credenciais do projeto Supabase para habilitar sincronização em nuvem.
-        const SUPABASE_URL = 'COLOQUE_SEU_SUPABASE_URL_AQUI';
-        const SUPABASE_ANON_KEY = 'COLOQUE_SUA_SUPABASE_ANON_KEY_AQUI';
-        const SUPABASE_ENABLED = SUPABASE_URL && SUPABASE_ANON_KEY && SUPABASE_URL !== 'COLOQUE_SEU_SUPABASE_URL_AQUI' && SUPABASE_ANON_KEY !== 'COLOQUE_SUA_SUPABASE_ANON_KEY_AQUI';
+        // As credenciais são obtidas prioritariamente de window.FITNEXIS_CONFIG (gerado pela Vercel no build),
+        // com fallback para localStorage (para configuração direta no navegador) ou constantes manuais.
+        const _fitnexisConfig = (typeof window !== 'undefined' && window.FITNEXIS_CONFIG) || {};
+        const _savedUrl = (typeof localStorage !== 'undefined' && localStorage.getItem('supabase_custom_url')) || '';
+        const _savedKey = (typeof localStorage !== 'undefined' && localStorage.getItem('supabase_custom_anon_key')) || '';
+
+        const SUPABASE_URL = _fitnexisConfig.SUPABASE_URL || _savedUrl || 'COLOQUE_SEU_SUPABASE_URL_AQUI';
+        const SUPABASE_ANON_KEY = _fitnexisConfig.SUPABASE_ANON_KEY || _savedKey || 'COLOQUE_SUA_SUPABASE_ANON_KEY_AQUI';
+        const SUPABASE_ENABLED = Boolean(
+            SUPABASE_URL &&
+            SUPABASE_ANON_KEY &&
+            SUPABASE_URL !== 'COLOQUE_SEU_SUPABASE_URL_AQUI' &&
+            SUPABASE_ANON_KEY !== 'COLOQUE_SUA_SUPABASE_ANON_KEY_AQUI'
+        );
         const SUPABASE_TABLE = 'fitnexis_states';
 
         const supabase = SUPABASE_ENABLED && typeof window.supabase !== 'undefined'
@@ -541,15 +570,21 @@
 
         async function loginWithSupabase() {
             if (!SUPABASE_ENABLED || !supabase) {
-                alert('Configure o Supabase no código para ativar a sincronização.');
+                alert('Credenciais do Supabase não configuradas.\n\nConfigure as variáveis SUPABASE_URL e SUPABASE_ANON_KEY no painel da Vercel ou insira-as nas Configurações.');
                 return;
             }
 
             const btn = document.getElementById('cloud-sync-btn');
-            if (btn) btn.disabled = true;
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Redirecionando para Google...</span>';
+            }
 
             if (typeof supabase.auth.signInWithOAuth !== 'function') {
-                if (btn) btn.disabled = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i><span>Entrar com Google</span>';
+                }
                 alert('Seu projeto Supabase não suporta signInWithOAuth.');
                 return;
             }
@@ -558,16 +593,23 @@
                 const redirectTo = `${window.location.origin}/`;
                 const { error } = await supabase.auth.signInWithOAuth({
                     provider: 'google',
-                    options: { redirectTo }
+                    options: {
+                        redirectTo,
+                        queryParams: {
+                            access_type: 'offline',
+                            prompt: 'consent'
+                        }
+                    }
                 });
 
                 if (error) throw error;
-                return;
             } catch (e) {
                 console.error('[Supabase] Erro no login:', e);
-                alert('Erro ao autenticar com Google no Supabase.');
-            } finally {
-                if (btn) btn.disabled = false;
+                alert(`Erro ao autenticar com Google no Supabase: ${e.message || e}`);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i><span>Entrar com Google</span>';
+                }
             }
         }
 
@@ -575,6 +617,18 @@
             const params = new URLSearchParams(window.location.search);
             const hash = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash);
             return params.has('code') || params.has('error') || hash.has('code') || hash.has('error');
+        }
+
+        function getAuthErrorFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const hash = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash);
+            return params.get('error_description') || params.get('error') || hash.get('error_description') || hash.get('error');
+        }
+
+        function cleanAuthUrl() {
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
         }
 
         async function logout() {
@@ -1633,7 +1687,49 @@
             if (!document.getElementById('settings-modal').classList.contains('hidden')) {
                 document.getElementById('auto-timer-checkbox').checked = autoStartTimer;
                 renderEditList();
+
+                const badge = document.getElementById('supabase-config-badge');
+                const urlInput = document.getElementById('setting-supabase-url');
+                const keyInput = document.getElementById('setting-supabase-key');
+                if (badge && urlInput && keyInput) {
+                    urlInput.value = SUPABASE_ENABLED ? SUPABASE_URL : '';
+                    keyInput.value = SUPABASE_ENABLED ? SUPABASE_ANON_KEY : '';
+                    if (SUPABASE_ENABLED) {
+                        badge.innerText = 'Ativo';
+                        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
+                    } else {
+                        badge.innerText = 'Não configurado';
+                        badge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+                    }
+                }
             }
+        }
+
+        function saveCustomSupabaseConfig() {
+            const url = (document.getElementById('setting-supabase-url')?.value || '').trim();
+            const key = (document.getElementById('setting-supabase-key')?.value || '').trim();
+            if (!url || !key) {
+                alert('Preencha tanto a URL quanto a chave anon do Supabase.');
+                return;
+            }
+            try {
+                new URL(url);
+            } catch (e) {
+                alert('URL do Supabase inválida. Exemplo: https://xyzcompany.supabase.co');
+                return;
+            }
+            localStorage.setItem('supabase_custom_url', url);
+            localStorage.setItem('supabase_custom_anon_key', key);
+            alert('Credenciais salvas com sucesso! O aplicativo será recarregado.');
+            window.location.reload();
+        }
+
+        function resetCustomSupabaseConfig() {
+            if (!confirm('Deseja limpar as credenciais salvas no navegador?')) return;
+            localStorage.removeItem('supabase_custom_url');
+            localStorage.removeItem('supabase_custom_anon_key');
+            alert('Credenciais removidas. O aplicativo será recarregado.');
+            window.location.reload();
         }
 
         function toggleModal(bgId, contentId) {
@@ -1937,53 +2033,88 @@
         }
 
         // --- AUTH / SESSÃO ---
-        async function initializeSessionUI() {
-            if (!SUPABASE_ENABLED || !supabase) {
-                setCloudProfile({ email: 'atleta@fitnexis.com' });
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('app-wrapper').classList.remove('hidden');
-                init();
-                updateSyncStatus('offline');
-                return;
-            }
+        let isAppInitialized = false;
 
-            let session = null;
-            let error = null;
-
-            if (typeof supabase.auth.getSessionFromUrl === 'function' && hasAuthCallbackInUrl()) {
-                const { data, error: callbackError } = await supabase.auth.getSessionFromUrl({ storeSession: true });
-                if (!callbackError) {
-                    session = data?.session || null;
-                } else {
-                    error = callbackError;
-                }
-                if (window.history && window.history.replaceState) {
-                    window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
-                }
-            }
-
-            if (!session && !error) {
-                ({ data: { session }, error } = await supabase.auth.getSession());
-            }
-
-            if (error) {
-                const message = error.message || 'Não foi possível completar a autenticação com Google.';
-                console.warn('[Supabase] Erro de sessão:', error);
-                alert(`Login com Google falhou: ${message}`);
-            }
-
-            if (session?.user) {
-                currentUser = session.user;
+        async function handleAuthUser(user) {
+            if (user) {
+                currentUser = user;
                 setCloudProfile(currentUser);
                 await loadFromSupabaseState(currentUser.id);
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('app-wrapper').classList.remove('hidden');
-                init();
+                if (!isAppInitialized) {
+                    init();
+                    isAppInitialized = true;
+                }
+                updateSyncStatus('online');
             } else {
                 currentUser = null;
+                isAppInitialized = false;
                 document.getElementById('login-screen').classList.remove('hidden');
                 document.getElementById('app-wrapper').classList.add('hidden');
                 updateSyncStatus('offline');
+            }
+        }
+
+        async function initializeSessionUI() {
+            const urlError = getAuthErrorFromUrl();
+            if (urlError) {
+                console.error('[Supabase Auth URL Error]:', urlError);
+                alert(`Erro ao autenticar com Google: ${decodeURIComponent(urlError.replace(/\+/g, ' '))}`);
+                cleanAuthUrl();
+            }
+
+            if (!SUPABASE_ENABLED || !supabase) {
+                // Modo offline sem credenciais configuradas
+                setCloudProfile({ email: 'atleta@fitnexis.com' });
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('app-wrapper').classList.remove('hidden');
+                if (!isAppInitialized) {
+                    init();
+                    isAppInitialized = true;
+                }
+                updateSyncStatus('offline');
+                return;
+            }
+
+            if (hasAuthCallbackInUrl()) {
+                const btn = document.getElementById('cloud-sync-btn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Conectando com o Google...</span>';
+                }
+            }
+
+            // Listener oficial para todos os eventos de sessão (PKCE exchange, login, logout, refresh)
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                console.log('[Supabase Auth Event]:', event, session?.user?.email);
+                if (hasAuthCallbackInUrl()) {
+                    cleanAuthUrl();
+                }
+
+                if (session?.user) {
+                    await handleAuthUser(session.user);
+                } else if (event === 'SIGNED_OUT' || !session) {
+                    await handleAuthUser(null);
+                }
+            });
+
+            // Fallback de verificação inicial
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error) {
+                    console.warn('[Supabase] Erro na sessão inicial:', error);
+                }
+                if (session?.user) {
+                    await handleAuthUser(session.user);
+                } else if (!hasAuthCallbackInUrl()) {
+                    await handleAuthUser(null);
+                }
+            } catch (err) {
+                console.error('[Supabase] Falha ao verificar sessão:', err);
+                if (!hasAuthCallbackInUrl()) {
+                    await handleAuthUser(null);
+                }
             }
         }
 
