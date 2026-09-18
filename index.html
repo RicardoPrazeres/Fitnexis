@@ -173,7 +173,7 @@
             <button id="cloud-sync-btn" onclick="loginWithSupabase()"
                 class="w-full bg-[var(--blue)] text-white font-bold py-4 px-6 rounded-2xl shadow-xl flex items-center justify-center space-x-3 active:scale-95 transition-all duration-150 text-base">
                 <i class="fa-solid fa-cloud-arrow-down"></i>
-                <span>Sincronizar no Supabase</span>
+                <span>Entrar com Google</span>
             </button>
             <p class="muted-copy text-xs mt-5"><i class="fa-solid fa-lock mr-1"></i> Seus dados ficam seguros na nuvem</p>
         </div>
@@ -548,25 +548,33 @@
             const btn = document.getElementById('cloud-sync-btn');
             if (btn) btn.disabled = true;
 
-            if (typeof supabase.auth.signInAnonymously !== 'function') {
+            if (typeof supabase.auth.signInWithOAuth !== 'function') {
                 if (btn) btn.disabled = false;
-                alert('Seu projeto Supabase não suporta signInAnonymously. Ative-o ou atualize o fluxo de login.');
+                alert('Seu projeto Supabase não suporta signInWithOAuth.');
                 return;
             }
 
             try {
-                const { data, error } = await supabase.auth.signInAnonymously();
+                const redirectTo = `${window.location.origin}/`;
+                const { error } = await supabase.auth.signInWithOAuth({
+                    provider: 'google',
+                    options: { redirectTo }
+                });
+
                 if (error) throw error;
-                currentUser = data.user;
-                setCloudProfile(currentUser);
-                await loadFromSupabaseState(currentUser.id);
-                await initializeSessionUI();
+                return;
             } catch (e) {
                 console.error('[Supabase] Erro no login:', e);
-                alert('Erro ao entrar no Supabase. Verifique a conexão e as chaves do projeto.');
+                alert('Erro ao autenticar com Google no Supabase.');
             } finally {
                 if (btn) btn.disabled = false;
             }
+        }
+
+        function hasAuthCallbackInUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const hash = new URLSearchParams(window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash);
+            return params.has('code') || params.has('error') || hash.has('code') || hash.has('error');
         }
 
         async function logout() {
@@ -1939,9 +1947,29 @@
                 return;
             }
 
-            const { data: { session }, error } = await supabase.auth.getSession();
+            let session = null;
+            let error = null;
+
+            if (typeof supabase.auth.getSessionFromUrl === 'function' && hasAuthCallbackInUrl()) {
+                const { data, error: callbackError } = await supabase.auth.getSessionFromUrl({ storeSession: true });
+                if (!callbackError) {
+                    session = data?.session || null;
+                } else {
+                    error = callbackError;
+                }
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
+                }
+            }
+
+            if (!session && !error) {
+                ({ data: { session }, error } = await supabase.auth.getSession());
+            }
+
             if (error) {
+                const message = error.message || 'Não foi possível completar a autenticação com Google.';
                 console.warn('[Supabase] Erro de sessão:', error);
+                alert(`Login com Google falhou: ${message}`);
             }
 
             if (session?.user) {

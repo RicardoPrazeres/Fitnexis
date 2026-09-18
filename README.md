@@ -39,8 +39,12 @@ create policy "Usuário acessa seu próprio estado"
   with check (auth.uid()::text = user_id);
 ```
 
-4. Em Authentication > Providers, ative `Anonymous Sign-ins`.
-5. Publicando com Vercel, mantenha os valores no `index.html` ou passe por variáveis de ambiente/build na sua pipeline.
+4. Em `Authentication > Providers`, ative `Google` e configure:
+   - `Client ID` e `Client Secret` do OAuth do Google.
+   - Redirect URL da aplicação (ex.: `https://fitnexis-livid.vercel.app/`).
+5. Em `Authentication > URL Configuration`, adicione o mesmo domínio na lista de `Site URL` e `Redirect URLs`.
+6. Em `Authentication > Settings`, mantenha o login via OAuth habilitado para usuários.
+7. Publicando com Vercel, mantenha os valores no `index.html` ou passe por variáveis de ambiente/build na sua pipeline.
 
 ## Arquivos úteis do Supabase
 
